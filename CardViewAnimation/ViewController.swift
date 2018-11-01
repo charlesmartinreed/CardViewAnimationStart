@@ -62,11 +62,11 @@ class ViewController: UIViewController {
     
     //MARK:- Gesture recognizers and handlers
     @objc func handleCardTap(recognizer: UITapGestureRecognizer) {
-        
+        //handle
     }
     
     @objc func handleCardPan(recognizer: UIPanGestureRecognizer) {
-        
+        //handle
     }
 
 }
