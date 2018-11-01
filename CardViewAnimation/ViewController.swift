@@ -62,12 +62,117 @@ class ViewController: UIViewController {
     
     //MARK:- Gesture recognizers and handlers
     @objc func handleCardTap(recognizer: UITapGestureRecognizer) {
-        //handle
+        switch recognizer.state {
+        case .ended:
+            animateTransitionIfNeeded(state: nextState, duration: 0.9)
+            
+        default:
+            break
+        }
     }
     
     @objc func handleCardPan(recognizer: UIPanGestureRecognizer) {
-        //handle
+        switch recognizer.state {
+        case .began:
+            // startTransition - finger on screen
+            startInteractiveTransition(state: nextState, duration: 0.9)
+        case .changed:
+            // updateTransition - move finger on screen
+            
+            // check translation of recognizer, create a fractional value for the animation "completion"
+            let translation = recognizer.translation(in: self.cardViewController.handleArea)
+            var fractionComplete = translation.y / cardHeight
+            
+            // if the card is visible, use the derived fraction complete as is. Otherwise, provide the negative value to animate UPWARD.
+            fractionComplete = isCardVisible ? fractionComplete : -fractionComplete
+            updateInteractiveTransition(fractionCompleted: fractionComplete)
+        case .ended:
+            //continueTransition - lift finger
+            continueInteractiveTransition()
+        default:
+            break
+        }
     }
-
+    
+    //MARK:- Animation block
+    func animateTransitionIfNeeded (state: CardState, duration: TimeInterval) {
+        // called when there are no animations in runningAnimation array
+        if runningAnimations.isEmpty {
+            //MARK:- Frame Animator
+            // create a frame animator, using damping for animation style
+            let frameAnimator = UIViewPropertyAnimator(duration: duration, dampingRatio: 1) {
+                //move card view up or down
+                switch state {
+                case .expanded:
+                    self.cardViewController.view.frame.origin.y = self.view.frame.height - self.cardHeight
+                case .collapsed:
+                    self.cardViewController.view.frame.origin.y = self.view.frame.height - self.cardHandleAreaHeight
+                }
+            }
+            
+            frameAnimator.addCompletion { _ in
+                self.isCardVisible = !self.isCardVisible
+                self.runningAnimations.removeAll()
+            }
+            
+            // start the animation and append animator to array
+            frameAnimator.startAnimation()
+            runningAnimations.append(frameAnimator)
+            
+            //MARK:- Corner Radius Animator
+            let cornerRadiusAnimator = UIViewPropertyAnimator(duration: duration, curve: .linear) {
+                switch state {
+                case .expanded:
+                    self.cardViewController.view.layer.cornerRadius = 12
+                case.collapsed:
+                    self.cardViewController.view.layer.cornerRadius = 0
+                }
+            }
+            
+            cornerRadiusAnimator.startAnimation()
+            runningAnimations.append(cornerRadiusAnimator)
+            
+            //MARK:- Blur Animator
+            let blurAnimator = UIViewPropertyAnimator(duration: duration, dampingRatio: 1) {
+                switch state {
+                case .expanded:
+                    self.visualEffectView.effect = UIBlurEffect(style: .dark)
+                case .collapsed:
+                    self.visualEffectView.effect = nil
+                }
+            }
+            
+            blurAnimator.startAnimation()
+            runningAnimations.append(blurAnimator)
+        }
+    }
+    
+    func startInteractiveTransition(state: CardState, duration: TimeInterval) {
+        // check if we have a currently animation
+        if runningAnimations.isEmpty {
+            animateTransitionIfNeeded(state: state, duration: duration)
+        }
+        
+        for animator in runningAnimations {
+            animator.pauseAnimation() // set animation speed to 0, which also makes it interactive
+            animationProgressWhenInterrupted = animator.fractionComplete
+        }
+    }
+    
+    func updateInteractiveTransition(fractionCompleted: CGFloat) {
+        //update the fraction complete for ALL of our animations
+        for animator in runningAnimations {
+            // add animationProgress so that animations begin at proper point when we move finger across the screen
+            animator.fractionComplete = fractionCompleted + animationProgressWhenInterrupted
+        }
+    }
+    
+    func continueInteractiveTransition() {
+        for animator in runningAnimations {
+            // using remaing time in the animation, set when calling startInteractiveTransition
+            animator.continueAnimation(withTimingParameters: nil, durationFactor: 0)
+        }
+        
+    }
 }
 
